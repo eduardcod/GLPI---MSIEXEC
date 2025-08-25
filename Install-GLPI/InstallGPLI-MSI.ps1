@@ -8,7 +8,7 @@ $GLPIFile = "$env:TEMP\glpi-agent.msi"
     # ==== GLPI NÃO IDENTIFICADO - REALIZARA A INSTALAÇÃO ====
     if (!(Test-Path -Path $Path)) {
         try {
-            Write-Host "Tentando instalar GLPI via MSI diretamente..." -ForegroundColor Yellow
+            Write-Host "Instlando Agent GLPI..." -ForegroundColor Yellow
             Invoke-WebRequest -Uri $GLPIUrl -OutFile $GLPIFile
            $process = Start-Process msiexec.exe -ArgumentList @("/i `"$GLPIFile`"", "DELAYTIME=120", "HTTPD_TRUST=127.0.0.1", "NO_SSL_CHECK=1", "SCAN_HOMEDIRS=0", "SCAN_PROFILES=0", "SERVER=http://172.173.167.109/marketplace/glpiinventory/", "DELAYTIME=120", "TAG=%COMPUTERNAME%", "RUNNOW=1", "/qn", "/norestart") -Wait -PassThru
     # VERIFICAÇÃO e VALIDAÇÃO
@@ -31,4 +31,5 @@ $GLPIFile = "$env:TEMP\glpi-agent.msi"
     } Stop-Transcript    
     else {
     Write-Host "Agent GLPI já está instalado." -ForegroundColor Green
+
 }
