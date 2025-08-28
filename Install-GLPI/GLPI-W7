@@ -1,0 +1,85 @@
+# ===========================
+# **** Instalação do GLPI ****
+# ===========================
+$Path = "C:\Program Files\GLPI-Agent\glpi-agent"
+$GLPIUrl_GitHub = "https://github.com/glpi-project/glpi-agent/releases/download/1.15/GLPI-Agent-1.15-x64.msi"
+$GLPIUrl_Mirror = "\\servidor\instaladores\GLPI-Agent-1.15-x64.msi"   # <- coloque aqui um caminho interno SMB/HTTP
+$GLPIFile = "$env:TEMP\glpi-agent.msi"
+
+# Detectar versão do Windows
+$winVer = (Get-CimInstance Win32_OperatingSystem).Caption
+Write-Host "Detectado: $winVer" -ForegroundColor Cyan
+
+# --- Função de download ---
+function Download-File($url, $output, $isWin7) {
+    if ($isWin7) {
+        Write-Host "Windows 7 detectado: usando Bitsadmin ou mirror interno..." -ForegroundColor Yellow
+
+        if ($url -like "\\*") {
+            # Copiar de compartilhamento interno
+            Copy-Item $url -Destination $output -Force
+        } else {
+            # Usar Bitsadmin para download (funciona melhor no Win7 que iwr/wc)
+            Start-Process bitsadmin.exe -ArgumentList "/transfer `"DownloadGLPI`" $url $output" -Wait
+        }
+    }
+    else {
+        Write-Host "Windows 10/11: usando Invoke-WebRequest com TLS1.2..." -ForegroundColor Green
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        } catch {}
+        Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing
+    }
+}
+
+# --- Instalação ---
+if (!(Test-Path -Path $Path)) {
+    try {
+        # Escolher URL dependendo do Windows
+        $isWin7 = $winVer -like "*Windows 7*"
+        $urlToUse = if ($isWin7) { $GLPIUrl_Mirror } else { $GLPIUrl_GitHub }
+
+        Write-Host "Baixando instalador do GLPI..." -ForegroundColor Yellow
+        Download-File -url $urlToUse -output $GLPIFile -isWin7:$isWin7
+
+        Write-Host "Iniciando instalação..." -ForegroundColor Yellow
+
+        $arguments = @(
+            "/i `"$GLPIFile`"",
+            "DELAYTIME=120",
+            "HTTPD_TRUST=127.0.0.1",
+            "NO_SSL_CHECK=1",
+            "SCAN_HOMEDIRS=0",
+            "SCAN_PROFILES=0",
+            "SERVER=http://192.168.0.1/marketplace/glpiinventory/",
+            "TAG=$env:COMPUTERNAME",
+            "RUNNOW=1",
+            "/qn",
+            "/norestart"
+        )
+
+        $process = Start-Process msiexec.exe -ArgumentList $arguments -Wait -PassThru
+
+        $exitCode = $process.ExitCode
+        if ($exitCode -eq 0) {
+            Write-Host "Instalação teve sucesso." -ForegroundColor Green
+            exit 0
+        } else {
+            Write-Host "A instalação falhou. Código do erro: $exitCode" -ForegroundColor Red
+            exit 1
+        }
+    } catch {
+        Write-Host "Erro durante a instalação via MSI: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    } finally {
+        Remove-Item -Path $GLPIFile -ErrorAction SilentlyContinue
+    }
+}
+elseif (Test-Path -Path $Path) {
+    Write-Host "Agent GLPI já está instalado" -ForegroundColor Green
+    exit 0
+}
+else {
+    Write-Host "Agent GLPI não está instalado." -ForegroundColor Red
+    exit 1
+}
