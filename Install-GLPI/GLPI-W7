@@ -3,20 +3,20 @@
 # ===========================
 $Path = "C:\Program Files\GLPI-Agent\glpi-agent"
 $GLPIUrl_GitHub = "https://github.com/glpi-project/glpi-agent/releases/download/1.15/GLPI-Agent-1.15-x64.msi"
-$GLPIUrl_Mirror = "\\servidor\instaladores\GLPI-Agent-1.15-x64.msi"   # <- coloque aqui o seu mirror interno
+$GLPIUrl_Mirror = "\\servidor\instaladores\GLPI-Agent-1.15-x64.msi"   # <- altere para seu mirror interno
 $GLPIFile = "$env:TEMP\glpi-agent.msi"
 
-# Detectar Sistema Operacional
-$OS = (Get-CimInstance Win32_OperatingSystem).Caption
+# Detectar Sistema Operacional (compatível PS2.0)
+try {
+    $OS = (Get-WmiObject Win32_OperatingSystem).Caption
+} catch {
+    $OS = "Desconhecido"
+}
 Write-Host "Detectado: $OS" -ForegroundColor Cyan
 
 # --- Função de download ---
 function Download-File {
-    param(
-        [string]$url,
-        [string]$output,
-        [string]$os
-    )
+    param([string]$url, [string]$output, [string]$os)
 
     if ($os -like "*Windows 7*") {
         Write-Host "Windows 7 detectado: tentando mirror interno..." -ForegroundColor Yellow
@@ -25,16 +25,18 @@ function Download-File {
             Copy-Item $GLPIUrl_Mirror -Destination $output -Force
             Write-Host "Instalador copiado do mirror interno." -ForegroundColor Green
         } else {
-            Write-Host "Mirror interno não encontrado. Tentando Bitsadmin com GitHub..." -ForegroundColor Yellow
+            Write-Host "Mirror interno não encontrado. Tentando Bitsadmin no GitHub..." -ForegroundColor Yellow
             Start-Process bitsadmin.exe -ArgumentList "/transfer `"DownloadGLPI`" $GLPIUrl_GitHub $output" -Wait
         }
-    }
-    else {
+    } else {
         Write-Host "Windows 10/11 detectado: baixando do GitHub com TLS1.2..." -ForegroundColor Green
-        try {
-            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        } catch {}
-        Invoke-WebRequest -Uri $GLPIUrl_GitHub -OutFile $output -UseBasicParsing
+        try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
+        if (Get-Command Invoke-WebRequest -ErrorAction SilentlyContinue) {
+            Invoke-WebRequest -Uri $GLPIUrl_GitHub -OutFile $output -UseBasicParsing
+        } else {
+            $wc = New-Object System.Net.WebClient
+            $wc.DownloadFile($GLPIUrl_GitHub, $output)
+        }
     }
 }
 
@@ -45,7 +47,6 @@ if (!(Test-Path -Path $Path)) {
         Download-File -url $GLPIUrl_GitHub -output $GLPIFile -os $OS
 
         Write-Host "Iniciando instalação..." -ForegroundColor Yellow
-
         $arguments = @(
             "/i `"$GLPIFile`"",
             "DELAYTIME=120",
@@ -61,14 +62,14 @@ if (!(Test-Path -Path $Path)) {
         )
 
         $process = Start-Process msiexec.exe -ArgumentList $arguments -Wait -PassThru
-
         $exitCode = $process.ExitCode
+
         if ($exitCode -eq 0) {
             Write-Host "Instalação teve sucesso." -ForegroundColor Green
             exit 0
         } else {
             Write-Host "A instalação falhou. Código do erro: $exitCode" -ForegroundColor Red
-            exit 1
+            exit $exitCode
         }
     } catch {
         Write-Host "Erro durante a instalação via MSI: $($_.Exception.Message)" -ForegroundColor Red
@@ -76,12 +77,10 @@ if (!(Test-Path -Path $Path)) {
     } finally {
         Remove-Item -Path $GLPIFile -ErrorAction SilentlyContinue
     }
-}
-elseif (Test-Path -Path $Path) {
+} elseif (Test-Path -Path $Path) {
     Write-Host "Agent GLPI já está instalado" -ForegroundColor Green
     exit 0
-}
-else {
+} else {
     Write-Host "Agent GLPI não está instalado." -ForegroundColor Red
     exit 1
 }
