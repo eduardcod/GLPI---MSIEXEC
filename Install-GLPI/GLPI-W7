@@ -3,44 +3,46 @@
 # ===========================
 $Path = "C:\Program Files\GLPI-Agent\glpi-agent"
 $GLPIUrl_GitHub = "https://github.com/glpi-project/glpi-agent/releases/download/1.15/GLPI-Agent-1.15-x64.msi"
-$GLPIUrl_Mirror = "\\servidor\instaladores\GLPI-Agent-1.15-x64.msi"   # <- coloque aqui um caminho interno SMB/HTTP
+$GLPIUrl_Mirror = "\\servidor\instaladores\GLPI-Agent-1.15-x64.msi"   # <- coloque aqui o seu mirror interno
 $GLPIFile = "$env:TEMP\glpi-agent.msi"
 
-# Detectar versão do Windows
-$winVer = (Get-CimInstance Win32_OperatingSystem).Caption
-Write-Host "Detectado: $winVer" -ForegroundColor Cyan
+# Detectar Sistema Operacional
+$OS = (Get-CimInstance Win32_OperatingSystem).Caption
+Write-Host "Detectado: $OS" -ForegroundColor Cyan
 
 # --- Função de download ---
-function Download-File($url, $output, $isWin7) {
-    if ($isWin7) {
-        Write-Host "Windows 7 detectado: usando Bitsadmin ou mirror interno..." -ForegroundColor Yellow
+function Download-File {
+    param(
+        [string]$url,
+        [string]$output,
+        [string]$os
+    )
 
-        if ($url -like "\\*") {
-            # Copiar de compartilhamento interno
-            Copy-Item $url -Destination $output -Force
+    if ($os -like "*Windows 7*") {
+        Write-Host "Windows 7 detectado: tentando mirror interno..." -ForegroundColor Yellow
+        
+        if (Test-Path $GLPIUrl_Mirror) {
+            Copy-Item $GLPIUrl_Mirror -Destination $output -Force
+            Write-Host "Instalador copiado do mirror interno." -ForegroundColor Green
         } else {
-            # Usar Bitsadmin para download (funciona melhor no Win7 que iwr/wc)
-            Start-Process bitsadmin.exe -ArgumentList "/transfer `"DownloadGLPI`" $url $output" -Wait
+            Write-Host "Mirror interno não encontrado. Tentando Bitsadmin com GitHub..." -ForegroundColor Yellow
+            Start-Process bitsadmin.exe -ArgumentList "/transfer `"DownloadGLPI`" $GLPIUrl_GitHub $output" -Wait
         }
     }
     else {
-        Write-Host "Windows 10/11: usando Invoke-WebRequest com TLS1.2..." -ForegroundColor Green
+        Write-Host "Windows 10/11 detectado: baixando do GitHub com TLS1.2..." -ForegroundColor Green
         try {
             [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         } catch {}
-        Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing
+        Invoke-WebRequest -Uri $GLPIUrl_GitHub -OutFile $output -UseBasicParsing
     }
 }
 
 # --- Instalação ---
 if (!(Test-Path -Path $Path)) {
     try {
-        # Escolher URL dependendo do Windows
-        $isWin7 = $winVer -like "*Windows 7*"
-        $urlToUse = if ($isWin7) { $GLPIUrl_Mirror } else { $GLPIUrl_GitHub }
-
         Write-Host "Baixando instalador do GLPI..." -ForegroundColor Yellow
-        Download-File -url $urlToUse -output $GLPIFile -isWin7:$isWin7
+        Download-File -url $GLPIUrl_GitHub -output $GLPIFile -os $OS
 
         Write-Host "Iniciando instalação..." -ForegroundColor Yellow
 
