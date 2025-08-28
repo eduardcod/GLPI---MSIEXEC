@@ -1,0 +1,73 @@
+# ===========================
+# **** Instalação do GLPI ****
+# ===========================
+$Path = "C:\Program Files\GLPI-Agent\glpi-agent"
+$GLPIUrl = "https://github.com/glpi-project/glpi-agent/releases/download/1.15/GLPI-Agent-1.15-x64.msi"
+$GLPIFile = "$env:TEMP\glpi-agent.msi"
+
+# --- Forçar TLS 1.2 no Windows 7/8 ---
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+} catch {
+    Write-Host "Aviso: Não foi possível forçar TLS1.2 (PowerShell muito antigo?)" -ForegroundColor Yellow
+}
+
+# --- Função de download compatível ---
+function Download-File($url, $output) {
+    if (Get-Command Invoke-WebRequest -ErrorAction SilentlyContinue) {
+        Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing
+    } else {
+        $wc = New-Object System.Net.WebClient
+        $wc.DownloadFile($url, $output)
+    }
+}
+
+# --- Instalação ---
+if (!(Test-Path -Path $Path)) {
+    try {
+        Write-Host "Tentando instalar GLPI via MSI diretamente..." -ForegroundColor Yellow
+        
+        # Baixar instalador
+        Download-File -url $GLPIUrl -output $GLPIFile
+
+        # Instalar MSI silenciosamente
+        $arguments = @(
+            "/i `"$GLPIFile`"",
+            "DELAYTIME=120",
+            "HTTPD_TRUST=127.0.0.1",
+            "NO_SSL_CHECK=1",
+            "SCAN_HOMEDIRS=0",
+            "SCAN_PROFILES=0",
+            "SERVER=http://192.168.0.1/marketplace/glpiinventory/",
+            "TAG=$env:COMPUTERNAME",
+            "RUNNOW=1",
+            "/qn",
+            "/norestart"
+        )
+
+        $process = Start-Process msiexec.exe -ArgumentList $arguments -Wait -PassThru
+
+        # Verificação de retorno
+        $exitCode = $process.ExitCode
+        if ($exitCode -eq 0) {
+            Write-Host "Instalação teve sucesso." -ForegroundColor Green
+            exit 0
+        } else {
+            Write-Host "A instalação falhou. Codigo do erro: $exitCode" -ForegroundColor Red
+            exit 1
+        }
+    } catch {
+        Write-Host "Erro durante a instalação via MSI: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    } finally {
+        Remove-Item -Path $GLPIFile -ErrorAction SilentlyContinue
+    }
+}
+elseif (Test-Path -Path $Path) {
+    Write-Host "Agent GLPI já está instalado" -ForegroundColor Green
+    exit 0
+}
+else {
+    Write-Host "Agent GLPI não está instalado." -ForegroundColor Red
+    exit 1
+}
