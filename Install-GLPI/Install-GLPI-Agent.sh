@@ -6,7 +6,7 @@
 set -e
 
 # Definir variáveis
-LOG_FILE="/var/log/glpi-agent-install.log"
+LOG_FILE="$HOME/glpi-agent-install.log"
 GLPI_SERVER="http://10.123.87.5/marketplace/glpiinventory/"
 AGENT_TAG="PDV"
 GLPI_VERSION="1.15"
