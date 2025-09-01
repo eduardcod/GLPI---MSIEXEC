@@ -6,11 +6,11 @@
 set -e
 
 # Definir variáveis
-LOG_FILE="$TMP/glpi-agent-install.log"
+LOG_FILE="$tmp/glpi-agent-install.log"
 GLPI_SERVER="http://10.123.87.5/marketplace/glpiinventory/"
 AGENT_TAG="PDV"
 GLPI_VERSION="1.15"
-INSTALLER="$TMP/glpi-agent-1.15-x86_64.AppImage"
+INSTALLER="$tmp/glpi-agent-1.15-x86_64.AppImage"
 
 # Redirecionar saída para log e terminal
 exec > >(tee -a "$LOG_FILE") 2>&1
