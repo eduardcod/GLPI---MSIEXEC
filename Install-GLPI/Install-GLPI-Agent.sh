@@ -10,7 +10,7 @@ LOG_FILE="$HOME/glpi-agent-install.log"
 GLPI_SERVER="http://10.123.87.5/marketplace/glpiinventory/"
 AGENT_TAG="PDV"
 GLPI_VERSION="1.15"
-INSTALLER="$INST/tmp/glpi-agent-1.15-x86_64.AppImage"
+INSTALLER="$INST/glpi-agent-1.15-x86_64.AppImage"
 
 # Redirecionar saída para log e terminal
 exec > >(tee -a "$LOG_FILE") 2>&1
